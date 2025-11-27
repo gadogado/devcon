@@ -1,0 +1,28 @@
+# Source files (only publish dist/)
+src/
+tsconfig.json
+
+# Development files
+*.md.bak
+*.yaml.bak
+.DS_Store
+
+# Git files
+.git
+.gitignore
+
+# Config examples
+config.yaml.example
+
+# CI/CD
+.github/
+
+# IDE
+.vscode/
+.idea/
+
+# AGENTS
+AGENTS.md
+CLAUDE.md
+.cursor/
+.claude/

@@ -1,0 +1,53 @@
+# User-level Devcon Configuration
+# Place this file at: ~/.devcon/config.yaml
+#
+# User preferences override project defaults but can be overridden by CLI flags
+
+# Personal directory preferences
+workflow:
+  # Where to create worktrees (default: ~/devcon-worktrees)
+  worktree_base: "~/devcon-worktrees"
+
+  # Auto-cleanup containers on exit
+  auto_cleanup: true
+
+# Container preferences
+container:
+  # Prefix for container names
+  prefix: devcontainer
+
+  # Default shell
+  shell: zsh
+
+# Editor preferences
+editor:
+  # Your preferred editor
+  default: vim
+
+# Network preferences (applies to all projects unless overridden)
+network:
+  security:
+    # Enable network security by default for all containers
+    enabled: false
+
+# Doppler preferences
+doppler:
+  # Auto-inject secrets by default
+  auto_inject: true
+
+  # Default config/environment
+  config: dev
+
+# Port preferences
+ports:
+  # Preferred base ports (used if project doesn't specify)
+  app: 3000
+  admin: 5555
+
+# Git preferences
+git:
+  # Auto-fetch on worktree creation
+  auto_fetch: true
+
+  # Default remote
+  default_remote: origin

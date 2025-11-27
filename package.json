@@ -1,0 +1,58 @@
+{
+  "name": "@geoffereth/devcon",
+  "version": "0.0.1",
+  "description": "An opinionated wrapper around devcontainers/cli",
+  "type": "module",
+  "keywords": [
+    "devcontainer",
+    "docker",
+    "git-worktree",
+    "development",
+    "workspace",
+    "cli",
+    "doppler",
+    "secrets",
+    "network-security"
+  ],
+  "bin": {
+    "devcon": "dist/devcon.js"
+  },
+  "files": [
+    "dist/",
+    "scripts/",
+    ".devcontainer/",
+    "README.md"
+  ],
+  "scripts": {
+    "dev": "tsx src/devcon.ts",
+    "build": "tsc",
+    "prepublishOnly": "pnpm run build",
+    "postinstall": "echo '\n✅ devcon installed! Run \"devcon\" to see available commands.\n'"
+  },
+  "dependencies": {
+    "tsx": "^4.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gadogado/devcon.git"
+  },
+  "homepage": "https://github.com/gadogado/devcon#readme",
+  "bugs": {
+    "url": "https://github.com/gadogado/devcon/issues"
+  },
+  "author": "Geoff Ereth",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "preferGlobal": true,
+  "packageManager": "pnpm@9.0.0",
+  "os": [
+    "darwin",
+    "linux"
+  ]
+}

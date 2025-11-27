@@ -1,0 +1,159 @@
+# Devcon Configuration
+# Project-specific devcontainer settings
+
+# Container naming
+container:
+  # Prefix for container names (default: devcontainer)
+  prefix: devcontainer
+  # Whether to append repo name to container name (default: true)
+  use_repo_name: true
+
+# Port configuration
+ports:
+  # Define ANY ports you want - they'll automatically be:
+  #   1. Forwarded by Docker
+  #   2. Allowed through the firewall
+  #   3. Displayed in devcon-status.sh with your custom names
+  #
+  # Format: name: port_number
+  # Names can be anything you want - they're just labels!
+  # NO ports are required - define only what you need.
+
+  next: 3000 # Example: Next.js, React, Vue, etc.
+  prisma-studio: 5555 # Example: Prisma Studio, DB admin, etc.
+
+  # Add any custom ports here:
+  # api: 8080      # API server
+  # websocket: 3001  # WebSocket server
+  # redis: 6379    # Redis (if running in container)
+  # postgres: 5432 # PostgreSQL (if running in container)
+  # webpack: 8081  # Webpack dev server
+  # storybook: 6006  # Storybook
+
+  # Port allocation strategy for --new mode (multiple containers running simultaneously)
+  # Options: dynamic (find next available), static (use configured)
+  allocation_strategy: dynamic
+
+# Runtime stack
+stack:
+  # Node.js version (lts, 20, 18, etc.)
+  node_version: lts
+
+  # Python version (applies when uv installs successfully)
+  python_version: "3.11"
+
+  # Optional Ruby installation (uncomment to install)
+  # ruby_version: "3.4"
+
+  # Optional PostgreSQL installation (uncomment to install)
+  # postgres_version: "16"
+
+  # Global npm packages to install
+  global_packages:
+    - "@anthropic-ai/claude-code@latest" # Remove entries to skip install
+    - "@openai/codex"
+    - "cursor-agent"
+
+  # System packages to install (apt-get)
+  # system_packages:
+  # - "redis-tools"
+
+# Doppler secret management
+doppler:
+  # Enable Doppler integration (disabled by default; flip to true when ready)
+  enabled: false
+  # Doppler project name (leave empty to use repo name)
+  project: ""
+  # Doppler config/environment
+  config: "dev"
+  # Auto-inject secrets into shell on container start
+  auto_inject: true
+
+# Network security (firewall)
+network:
+  security:
+    # Enable network restrictions (blocks all outbound except whitelist)
+    # When enabled, ONLY whitelisted domains/IPs are allowed
+    # Base domains (GitHub, npm, Anthropic, VS Code) are always included
+    enabled: false
+
+    # Additional allowed hostnames beyond base domains
+    # Base domains (always included when security enabled):
+    #   - github.com (all IPs from api.github.com/meta)
+    #   - registry.npmjs.org
+    #   - api.anthropic.com
+    #   - sentry.io, statsig.anthropic.com, statsig.com
+    #   - marketplace.visualstudio.com, vscode.blob.core.windows.net, update.code.visualstudio.com
+    #
+    # Add your project-specific domains here:
+    allowed_hosts:
+      []
+      # - "api.stripe.com"           # Stripe API
+      # - "*.azure.com"              # Azure services (wildcard)
+      # - "api.openai.com"           # OpenAI API
+      # - "*.vercel.com"             # Vercel services
+      # - "storage.googleapis.com"   # Google Cloud Storage
+
+    # Allowed IP addresses/ranges (CIDR notation)
+    # Use for services without stable domain names
+    allowed_ips:
+      []
+      # - "1.2.3.4/32"               # Single IP
+      # - "10.0.0.0/8"               # Private network range
+      # - "192.168.1.0/24"           # Local subnet
+
+    # Allowed ports (outbound)
+    # App port and admin port from ports.app/ports.admin are automatically added
+    # These are additional ports beyond 53 (DNS), 22 (SSH), 9418 (Git), 80, 443
+    allowed_ports:
+      []
+      # - 8080                       # Custom HTTP port
+      # - 5432                       # PostgreSQL (if external)
+      # - 6379                       # Redis (if external)
+
+    # Default policy for non-whitelisted traffic
+    # Options: DROP (silent), REJECT (sends ICMP error)
+    default_policy: DROP
+
+    # Log blocked connections to dmesg
+    # View with: sudo dmesg | grep FIREWALL-BLOCKED
+    log_blocked: true
+
+# Development workflow
+workflow:
+  # Default worktree base directory (relative to home)
+  worktree_base: "devcon-worktrees"
+
+  # Auto-cleanup containers on exit (for --new mode)
+  auto_cleanup: true
+
+  # Default shell to use in container
+  shell: "zsh"
+
+# Editor preferences
+editor:
+  # Default editor (vim, nano, code, etc.)
+  default: "vim"
+
+  # Additional editor packages
+  packages:
+    []
+    # - "neovim"
+    # - "emacs"
+# Container resources (optional - uncomment to set limits)
+# resources:
+#   # CPU limit (number of cores)
+#   cpus: "2.0"
+#
+#   # Memory limit
+#   memory: "4g"
+#
+#   # Memory reservation
+#   memory_reservation: "2g"
+
+# Additional Docker run arguments
+# docker:
+#   # Extra arguments to pass to docker run
+#   extra_args: []
+#     # - "--privileged"
+#     # - "--cap-add=SYS_PTRACE"
