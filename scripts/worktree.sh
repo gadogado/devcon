@@ -112,6 +112,35 @@ expand_path() {
   echo "$input"
 }
 
+# Sync the current repo's .devcontainer directory into the worktree
+sync_devcontainer_config() {
+  local source_root="$1"
+  local target_root="$2"
+  local source_dir="$source_root/.devcontainer"
+  local target_dir="$target_root/.devcontainer"
+
+  if [ ! -d "$source_dir" ]; then
+    return
+  fi
+
+  local source_status=""
+  if git -C "$source_root" rev-parse --git-dir >/dev/null 2>&1; then
+    source_status=$(git -C "$source_root" status --porcelain -- .devcontainer 2>/dev/null || true)
+  fi
+
+  if [ -z "$source_status" ] && [ -d "$target_dir" ]; then
+    # Target already has the committed config and there are no local overrides to copy
+    return
+  fi
+
+  if [ -d "$target_dir" ]; then
+    rm -rf "$target_dir"
+  fi
+
+  info "Syncing .devcontainer configuration into worktree..."
+  cp -R "$source_dir" "$target_dir"
+}
+
 # Load config values if not provided via CLI
 if [ -z "$WORKTREE_BASE" ]; then
   WORKTREE_BASE=$(get_worktree_base)
@@ -152,8 +181,9 @@ if ! git rev-parse --git-dir >/dev/null 2>&1; then
   exit 1
 fi
 
-# Get the repo name for organizing worktrees
-REPO_NAME=$(basename "$(git rev-parse --show-toplevel)")
+# Get repo root/name for organizing worktrees and config sync
+REPO_ROOT=$(git rev-parse --show-toplevel)
+REPO_NAME=$(basename "$REPO_ROOT")
 
 # Create worktree directory path
 WORKTREE_DIR="$WORKTREE_BASE/$REPO_NAME/$BRANCH_NAME"
@@ -182,6 +212,9 @@ else
 
   info "Worktree created at: $WORKTREE_DIR"
 fi
+
+# Ensure devcontainer config matches the source repo
+sync_devcontainer_config "$REPO_ROOT" "$WORKTREE_DIR"
 
 # Change to worktree directory
 cd "$WORKTREE_DIR"

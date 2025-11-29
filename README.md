@@ -1,13 +1,17 @@
 # devcon
 
+![devcon](https://img.shields.io/npm/v/%40geoffereth%2Fdevcon)
+
 `devcon` is an **opinionated** wrapper around Microsoft’s Dev Container CLI.
 
 **devcon** features:
 
-- automates git worktree <-> devcontainer creation
-- avoids port collisions for multiple devcon managed containers
+- automates git worktree <-> devcontainer creation.
+- avoids port collisions for multiple devcon managed containers.
 - ships with optional outbound firewall rules which is helpful for `yolo` agentic development.
 - has a shareable, directory scoped config `.devcontainer/devcon.yaml`.
+
+🚧🚧 NOTE: **devcon is in an early stage of development and ideation** 🚧🚧
 
 ## Quick Start
 
@@ -22,10 +26,11 @@
 3. Run it
    ```bash
    cd <repo>
+   devcon init
    devcon up
    ```
 
-## Everyday Commands
+## Quick Commands
 
 | Command                                                 | Description                                                                                                                                                 |
 | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -35,9 +40,9 @@
 | `devcon status`                                         | List every container started by devcon plus port mappings.                                                                                                  |
 | `devcon down` / `devcon remove`                         | Stop or stop+delete the containers associated with the current directory.                                                                                   |
 
-## Configuration (single source of truth)
+## Centralized configuration
 
-Everything lives in `.devcontainer/devcon.yaml`; keep `devcontainer.json` minimal (just the Dockerfile/customizations). Example:
+Everything lives in `.devcontainer/devcon.yaml` keeping `devcontainer.json` minimal:
 
 ```yaml
 ports:
@@ -56,7 +61,7 @@ stack:
   system_packages: [] # apt packages can go here
 
 workflow:
-  worktree_base: "devcon-worktrees" # local directory for connected git worktrees
+  worktree_base: "devcon-worktrees" # your local directory for connected git worktrees
   auto_cleanup: true # containers removed on exit unless --no-cleanup
   shell: "zsh"
 
@@ -71,20 +76,28 @@ network:
 Set `ports.allocation_strategy: static` to pin host ports (devcon aborts if any are busy); leave it `dynamic` to auto-reassign when ports are in use.
 Use `stack.postgres_version` only when you need PostgreSQL .. devcon then installs it, auto-starts the service on container boot, and seeds a `devcon` superuser + database with passwordless local auth (`psql -h localhost -U devcon`).
 
+## devcon + VSCode
+
+`devcon` also works with the [devcontainer](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension; however, not all devcon cli options are available.
+
+#### Opening in container from VSCode OR Cursor + Anysphere:
+
+1. cd to project root and run `devcon init`
+2. Open project in VSCode which has the `devcontainers` extension
+3. Open the **Command Palette** ( OSX: `Command + Shift + P`)
+4. Find and select: `Dev Containers: Rebuild and Reopen in Container`
+
 ## Why devcon
 
 - **Git-worktree native** – `devcon worktree` creates the branch, worktree, and container in one step (default folder base: `~/devcon-worktrees`; devcon offers to create it if missing).
-- **Dynamic networking** – `devcon up` inspects every port declared in the YAML and binds the first free host port, so parallel containers “just work.”
-- **Policy-driven stack** – Node/Python/Ruby/Postgres versions, global npm packages, apt deps, Doppler/firewall toggles, etc., all live in one YAML file.
+- **Dynamic networking** – `devcon up` inspects every port declared in the YAML and binds the first free host port allowing for parallel containers.
+- **Policy-driven stack** – Node/Python/Ruby/Postgres versions, global npm packages, apt deps, Doppler/firewall toggles, etc., all live in one YAML file (`.devcontainer/devcon.yaml`).
 - **Agent-aware security** – optional outbound firewall and secret-handling rules so unsandboxed AI tooling stays safe.
 
-## Development Workflow
+## Local Development
 
 ```bash
 pnpm install
 pnpm build
-npm link              # exposes this checkout as the global `devcon`
-
-# edit scripts/*.sh → changes apply immediately
-# edit src/devcon.ts → rerun `pnpm build`
+npm link
 ```
