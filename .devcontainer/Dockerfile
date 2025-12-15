@@ -55,13 +55,14 @@ RUN ARCH=$(dpkg --print-architecture) && \
 
 # Project configuration for optional dependencies
 COPY devcon.yaml /tmp/devcon-config.yaml
+RUN chmod 644 /tmp/devcon-config.yaml
 
 # Install additional system packages from stack.system_packages (if any)
 RUN bash <<'BASH'
 set -euo pipefail
 CONFIG_PATH="/tmp/devcon-config.yaml"
 if [ -f "$CONFIG_PATH" ] && command -v yq >/dev/null 2>&1; then
-  mapfile -t EXTRA_PACKAGES < <(yq eval -r '.stack.system_packages[]? // empty' "$CONFIG_PATH" 2>/dev/null || true)
+  mapfile -t EXTRA_PACKAGES < <(yq eval '.stack.system_packages[]' "$CONFIG_PATH" 2>/dev/null || true)
   if [ "${#EXTRA_PACKAGES[@]}" -gt 0 ]; then
     echo "Installing extra system packages: ${EXTRA_PACKAGES[*]}"
     apt-get update
@@ -214,32 +215,46 @@ RUN bash <<'BASH'
 set -euo pipefail
 CONFIG_PATH="/tmp/devcon-config.yaml"
 if [ -f "$CONFIG_PATH" ] && command -v yq >/dev/null 2>&1; then
-  mapfile -t GLOBAL_PACKAGES < <(yq eval -r '.stack.global_packages[]? // empty' "$CONFIG_PATH" 2>/dev/null || true)
+  mapfile -t GLOBAL_PACKAGES < <(yq eval '.stack.global_packages[]' "$CONFIG_PATH" 2>/dev/null || true)
   if [ "${#GLOBAL_PACKAGES[@]}" -gt 0 ]; then
-    echo "Installing global pnpm packages: ${GLOBAL_PACKAGES[*]}"
-    FILTERED_PACKAGES=()
+    echo ""
+    echo "📦 Installing global packages..."
+    echo "────────────────────────────────"
     for pkg in "${GLOBAL_PACKAGES[@]}"; do
       case "$pkg" in
         cursor-agent)
-          echo "Detected cursor-agent; falling back to official installer"
-          curl -fsSL https://cursor.com/install -o /tmp/cursor-install.sh
-          chmod +x /tmp/cursor-install.sh
-          /tmp/cursor-install.sh
-          rm /tmp/cursor-install.sh
+          echo "⏳ Installing $pkg (via official installer)..."
+          if curl -fsSL https://cursor.com/install -o /tmp/cursor-install.sh 2>/dev/null; then
+            chmod +x /tmp/cursor-install.sh
+            if /tmp/cursor-install.sh >/dev/null 2>&1; then
+              echo "✅ $pkg installed"
+            else
+              echo "❌ $pkg failed to install"
+            fi
+            rm -f /tmp/cursor-install.sh
+          else
+            echo "❌ $pkg failed to download installer"
+          fi
           ;;
         *)
-          FILTERED_PACKAGES+=("$pkg")
+          echo "⏳ Installing $pkg..."
+          if pnpm install -g "$pkg" >/dev/null 2>&1; then
+            echo "✅ $pkg installed"
+          else
+            echo "❌ $pkg failed to install"
+            exit 1
+          fi
           ;;
       esac
     done
-    if [ "${#FILTERED_PACKAGES[@]}" -gt 0 ]; then
-      pnpm install -g "${FILTERED_PACKAGES[@]}"
-    fi
+    echo "────────────────────────────────"
+    echo "📦 Global packages complete"
+    echo ""
   else
-    echo "No global packages requested"
+    echo "📦 No global packages configured"
   fi
 else
-  echo "Config missing or yq unavailable; skipping global packages"
+  echo "⚠️  Config missing or yq unavailable; skipping global packages"
 fi
 BASH
 
@@ -256,10 +271,35 @@ COPY init-firewall.sh /usr/local/bin/
 COPY init-container.sh /usr/local/bin/
 COPY init-postgres.sh /usr/local/bin/
 RUN chmod 755 /usr/local/bin/init-firewall.sh /usr/local/bin/init-container.sh /usr/local/bin/init-postgres.sh && \
-  echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh, /usr/local/bin/init-postgres.sh" > /etc/sudoers.d/devcon-scripts && \
-  echo "node ALL=(root) NOPASSWD: /usr/bin/apt-get, /usr/bin/apt" >> /etc/sudoers.d/devcon-scripts && \
-  echo "%sudo ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/devcon-nopasswd && \
-  chmod 0440 /etc/sudoers.d/devcon-scripts /etc/sudoers.d/devcon-nopasswd
+  usermod -aG sudo node && \
+  echo "node ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/devcon-nopasswd && \
+  chmod 0440 /etc/sudoers.d/devcon-nopasswd
+
+# Run custom setup commands from devcon.yaml
+RUN bash <<'BASH'
+set -euo pipefail
+CONFIG_PATH="/tmp/devcon-config.yaml"
+if [ -f "$CONFIG_PATH" ] && command -v yq >/dev/null 2>&1; then
+  mapfile -t SETUP_COMMANDS < <(yq eval '.stack.setup_commands[]' "$CONFIG_PATH" 2>/dev/null || true)
+  if [ "${#SETUP_COMMANDS[@]}" -gt 0 ]; then
+    echo ""
+    echo "🔧 Running setup commands..."
+    echo "────────────────────────────────"
+    for cmd in "${SETUP_COMMANDS[@]}"; do
+      echo "⏳ $cmd"
+      if bash -c "$cmd"; then
+        echo "✅ Done"
+      else
+        echo "❌ Failed"
+        exit 1
+      fi
+    done
+    echo "────────────────────────────────"
+    echo "🔧 Setup commands complete"
+    echo ""
+  fi
+fi
+BASH
 
 # Cleanup copied config
 RUN rm -f /tmp/devcon-config.yaml

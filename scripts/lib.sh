@@ -175,30 +175,37 @@ get_default_editor() {
 # ============================================================================
 
 get_doppler_enabled() {
+  # Check env var first (set by Node.js config loader)
+  if [ -n "${DEVCON_DOPPLER_ENABLED:-}" ]; then
+    echo "$DEVCON_DOPPLER_ENABLED"
+    return 0
+  fi
   get_config_bool "doppler.enabled" "false"
 }
 
-get_doppler_token_path() {
-  if [ -n "${DOPPLER_TOKEN_FILE:-}" ]; then
-    echo "$DOPPLER_TOKEN_FILE"
-  else
-    echo "$HOME/.doppler/.token"
+
+get_doppler_token_env() {
+  # Check env var first (set by Node.js config loader)
+  if [ -n "${DEVCON_DOPPLER_TOKEN_ENV:-}" ]; then
+    echo "$DEVCON_DOPPLER_TOKEN_ENV"
+    return 0
   fi
+  get_config "doppler.token_env" "DOPPLER_TOKEN"
 }
 
-ensure_doppler_token_file() {
-  local token_path
-  token_path=$(get_doppler_token_path)
-  local token_dir
-  token_dir=$(dirname "$token_path")
+get_doppler_config_dir() {
+  echo "$HOME/.doppler"
+}
 
-  mkdir -p "$token_dir"
-  if [ ! -f "$token_path" ]; then
-    touch "$token_path"
-    chmod 600 "$token_path" >/dev/null 2>&1 || true
+check_doppler_authenticated() {
+  local config_dir
+  config_dir=$(get_doppler_config_dir)
+
+  # Check if Doppler config exists (user has run 'doppler login')
+  if [ -f "$config_dir/.doppler.yaml" ]; then
+    return 0
   fi
-
-  echo "$token_path"
+  return 1
 }
 
 # ============================================================================
@@ -215,6 +222,11 @@ get_admin_port() {
 }
 
 get_port_allocation_strategy() {
+  # Check env var first (set by Node.js config loader)
+  if [ -n "${DEVCON_PORT_ALLOCATION_STRATEGY:-}" ]; then
+    echo "$DEVCON_PORT_ALLOCATION_STRATEGY"
+    return 0
+  fi
   get_config "ports.allocation_strategy" "dynamic"
 }
 
@@ -337,15 +349,31 @@ get_all_ports() {
 
 # Container configuration
 get_container_prefix() {
+  # Check env var first (set by Node.js config loader)
+  if [ -n "${DEVCON_CONTAINER_PREFIX:-}" ]; then
+    echo "$DEVCON_CONTAINER_PREFIX"
+    return 0
+  fi
   get_config "container.prefix" "$(get_default_container_prefix)"
 }
 
 get_container_use_repo_name() {
+  # Check env var first (set by Node.js config loader)
+  if [ -n "${DEVCON_CONTAINER_USE_REPO_NAME:-}" ]; then
+    echo "$DEVCON_CONTAINER_USE_REPO_NAME"
+    return 0
+  fi
   get_config_bool "container.use_repo_name" "true"
 }
 
 # Workflow configuration
 get_worktree_base() {
+  # Check env var first (set by Node.js config loader)
+  if [ -n "${DEVCON_WORKFLOW_WORKTREE_BASE:-}" ]; then
+    local base="$DEVCON_WORKFLOW_WORKTREE_BASE"
+    echo "${base/#\~/$HOME}"
+    return 0
+  fi
   local base
   base=$(get_config "workflow.worktree_base" "$(get_default_worktree_base)")
   # Expand tilde
@@ -353,35 +381,66 @@ get_worktree_base() {
 }
 
 get_auto_cleanup() {
+  # Check env var first (set by Node.js config loader)
+  if [ -n "${DEVCON_WORKFLOW_AUTO_CLEANUP:-}" ]; then
+    echo "$DEVCON_WORKFLOW_AUTO_CLEANUP"
+    return 0
+  fi
   get_config_bool "workflow.auto_cleanup" "true"
 }
 
 get_default_shell_config() {
+  # Check env var first (set by Node.js config loader)
+  if [ -n "${DEVCON_WORKFLOW_SHELL:-}" ]; then
+    echo "$DEVCON_WORKFLOW_SHELL"
+    return 0
+  fi
   get_config "workflow.shell" "$(get_default_shell)"
 }
 
 get_doppler_project() {
+  # Check env var first (set by Node.js config loader)
+  if [ -n "${DEVCON_DOPPLER_PROJECT:-}" ]; then
+    echo "$DEVCON_DOPPLER_PROJECT"
+    return 0
+  fi
   get_config "doppler.project" ""
 }
 
 get_doppler_config() {
+  # Check env var first (set by Node.js config loader)
+  if [ -n "${DEVCON_DOPPLER_CONFIG:-}" ]; then
+    echo "$DEVCON_DOPPLER_CONFIG"
+    return 0
+  fi
   get_config "doppler.config" "dev"
-}
-
-get_doppler_auto_inject() {
-  get_config_bool "doppler.auto_inject" "true"
 }
 
 # Network security configuration
 get_network_security_enabled() {
+  # Check env var first (set by Node.js config loader)
+  if [ -n "${DEVCON_NETWORK_SECURITY_ENABLED:-}" ]; then
+    echo "$DEVCON_NETWORK_SECURITY_ENABLED"
+    return 0
+  fi
   get_config_bool "network.security.enabled" "false"
 }
 
 get_network_log_blocked() {
+  # Check env var first (set by Node.js config loader)
+  if [ -n "${DEVCON_NETWORK_LOG_BLOCKED:-}" ]; then
+    echo "$DEVCON_NETWORK_LOG_BLOCKED"
+    return 0
+  fi
   get_config_bool "network.security.log_blocked" "true"
 }
 
 get_network_default_policy() {
+  # Check env var first (set by Node.js config loader)
+  if [ -n "${DEVCON_NETWORK_DEFAULT_POLICY:-}" ]; then
+    echo "$DEVCON_NETWORK_DEFAULT_POLICY"
+    return 0
+  fi
   get_config "network.security.default_policy" "DROP"
 }
 

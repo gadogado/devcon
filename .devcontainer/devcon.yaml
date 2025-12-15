@@ -8,6 +8,23 @@ container:
   # Whether to append repo name to container name (default: true)
   use_repo_name: true
 
+# Host directory mounts
+# Share tool configs between host and container
+mounts:
+  # Common tool configs (shorthand: ~/.X -> /home/node/.X)
+  claude: true
+  codex: true
+  cursor: true
+  # azure: true       # Azure CLI (~/.azure)
+  # aws: true         # AWS CLI (~/.aws)
+  # gcloud: true      # Google Cloud (~/.config/gcloud)
+  # ssh: true         # SSH keys (~/.ssh) - use with caution
+
+  # Custom mounts (for non-standard paths)
+  # custom:
+  #   - source: "~/my-config"
+  #     target: "/home/node/my-config"
+
 # Port configuration
 ports:
   # Define ANY ports you want - they'll automatically be:
@@ -58,16 +75,21 @@ stack:
   # system_packages:
   # - "redis-tools"
 
+  # Custom setup commands (run as root during Docker build)
+  # setup_commands:
+  #   - "curl -sL https://aka.ms/InstallAzureCLIDeb | bash"
+
 # Doppler secret management
+# Usage: doppler run -- <command>
 doppler:
   # Enable Doppler integration (disabled by default; flip to true when ready)
   enabled: false
-  # Doppler project name (leave empty to use repo name)
+  # Doppler project name (required for personal tokens)
   project: ""
   # Doppler config/environment
   config: "dev"
-  # Auto-inject secrets into shell on container start
-  auto_inject: true
+  # Host env var containing your Doppler token (default: DOPPLER_TOKEN)
+  token_env: "DOPPLER_TOKEN"
 
 # Network security (firewall)
 network:

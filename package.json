@@ -1,6 +1,6 @@
 {
   "name": "@geoffereth/devcon",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "An opinionated wrapper around devcontainers/cli",
   "type": "module",
   "keywords": [
@@ -30,7 +30,8 @@
     "postinstall": "echo '\n✅ devcon installed! Run \"devcon\" to see available commands.\n'"
   },
   "dependencies": {
-    "tsx": "^4.19.0"
+    "tsx": "^4.19.0",
+    "yaml": "^2.3.4"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

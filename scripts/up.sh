@@ -29,6 +29,7 @@ NC='\033[0m' # No Color
 CONTAINER_NAME=""
 AUTO_CLEANUP=""  # Will be set from config if not provided via CLI
 DEVCONTAINER_CONFIG=""
+NO_CACHE=false
 PORT_MAPPINGS=()
 TEMP_DEVCON_DIR=""
 WORKSPACE_PATH="$(pwd -P 2>/dev/null || pwd)"
@@ -277,19 +278,65 @@ if (extraArgs.length) {
 
 config.containerEnv = config.containerEnv || {};
 
-if (skipDoppler) {
-  if (Array.isArray(config.mounts)) {
-    config.mounts = config.mounts.filter(entry => {
-      if (typeof entry !== 'string') return true;
-      return !entry.includes('.doppler-token');
-    });
+// Set DOPPLER_ENABLED based on config
+config.containerEnv.DOPPLER_ENABLED = skipDoppler ? "false" : "true";
+
+// Inject DOPPLER_PROJECT and DOPPLER_CONFIG from devcon.yaml if set
+const dopplerProject = process.env.DEVCON_DOPPLER_PROJECT;
+const dopplerConfig = process.env.DEVCON_DOPPLER_CONFIG;
+if (dopplerProject) {
+  config.containerEnv.DOPPLER_PROJECT = dopplerProject;
+}
+if (dopplerConfig) {
+  config.containerEnv.DOPPLER_CONFIG = dopplerConfig;
+}
+
+// Read token from configured host env var (default: DOPPLER_TOKEN)
+const tokenEnvVar = process.env.DEVCON_DOPPLER_TOKEN_ENV || 'DOPPLER_TOKEN';
+const tokenValue = process.env[tokenEnvVar];
+if (tokenValue) {
+  config.containerEnv.DOPPLER_TOKEN = tokenValue;
+}
+
+// Build mounts from DEVCON_MOUNTS config
+const mountsJson = process.env.DEVCON_MOUNTS;
+if (mountsJson) {
+  const mountsConfig = JSON.parse(mountsJson);
+  const mounts = [];
+
+  // Always include bash history volume
+  mounts.push('source=claude-code-bashhistory-${devcontainerId},target=/commandhistory,type=volume');
+
+  // Shorthand mounts map: key -> [hostPath, containerPath]
+  const shorthandMounts = {
+    claude: ['.claude', '/home/node/.claude'],
+    codex: ['.codex', '/home/node/.codex'],
+    cursor: ['.cursor', '/home/node/.cursor'],
+    azure: ['.azure', '/home/node/.azure'],
+    aws: ['.aws', '/home/node/.aws'],
+    gcloud: ['.config/gcloud', '/home/node/.config/gcloud'],
+    ssh: ['.ssh', '/home/node/.ssh'],
+  };
+
+  // Add shorthand mounts
+  for (const [key, [hostPath, containerPath]] of Object.entries(shorthandMounts)) {
+    if (mountsConfig[key] === true) {
+      mounts.push(`source=\${localEnv:HOME}/${hostPath},target=${containerPath},type=bind`);
+    }
   }
-  if (config.containerEnv.DOPPLER_TOKEN) {
-    delete config.containerEnv.DOPPLER_TOKEN;
+
+  // Add custom mounts
+  if (Array.isArray(mountsConfig.custom)) {
+    for (const custom of mountsConfig.custom) {
+      if (custom.source && custom.target) {
+        // Expand ~ to ${localEnv:HOME}
+        const source = custom.source.replace(/^~\//, '${localEnv:HOME}/');
+        mounts.push(`source=${source},target=${custom.target},type=bind`);
+      }
+    }
   }
-  config.containerEnv.DOPPLER_ENABLED = "false";
-} else {
-  config.containerEnv.DOPPLER_ENABLED = "true";
+
+  config.mounts = mounts;
 }
 
 fs.writeFileSync(targetPath, JSON.stringify(config, null, 2));
@@ -347,6 +394,10 @@ while [[ $# -gt 0 ]]; do
       AUTO_CLEANUP=false
       shift
       ;;
+    --no-cache)
+      NO_CACHE=true
+      shift
+      ;;
     --config)
       DEVCONTAINER_CONFIG="$2"
       shift 2
@@ -359,6 +410,7 @@ while [[ $# -gt 0 ]]; do
       echo "Options:"
       echo "  --name NAME        Custom container name (auto-generated if not provided)"
       echo "  --no-cleanup       Disable auto-cleanup after the container exits"
+      echo "  --no-cache         Rebuild the Docker image without using cache"
       echo "  --config PATH      Path to devcontainer config directory"
       echo "  --help             Show this help message"
       echo ""
@@ -366,6 +418,7 @@ while [[ $# -gt 0 ]]; do
       echo "  devcon up                                    # Auto-assigns ports and starts container"
       echo "  devcon up --name preview                     # Custom container name"
       echo "  devcon up --no-cleanup                       # Keep container running after exit"
+      echo "  devcon up --no-cache                         # Force rebuild without Docker cache"
       echo ""
       echo "Configuration:"
       echo "  Project config: .devcontainer/devcon.yaml"
@@ -410,11 +463,14 @@ fi
 info "Using devcontainer config from: $DEVCONTAINER_CONFIG"
 
 DOPPLER_ENABLED=$(get_doppler_enabled)
-SKIP_DOPPLER_MOUNT="false"
-if [ "$DOPPLER_ENABLED" = "true" ]; then
-  ensure_doppler_token_file >/dev/null
-else
-  SKIP_DOPPLER_MOUNT="true"
+DOPPLER_TOKEN_ENV=$(get_doppler_token_env)
+DOPPLER_DISABLED="false"
+if [ "$DOPPLER_ENABLED" != "true" ]; then
+  DOPPLER_DISABLED="true"
+elif [ -z "${!DOPPLER_TOKEN_ENV:-}" ]; then
+  warn "Doppler enabled but ${DOPPLER_TOKEN_ENV} not set on host"
+  warn "Get a personal token at https://dashboard.doppler.com"
+  warn "Then: export ${DOPPLER_TOKEN_ENV}=dp.pt.xxx"
 fi
 
 # Generate container name (auto if not provided)
@@ -509,16 +565,22 @@ for entry in "${PORT_MAPPING_RESULTS[@]}"; do
   EXTRA_RUN_ARGS+=("${host_port}:${container_port}")
 done
 
-EFFECTIVE_DEVCON_DIR=$(prepare_devcontainer_config "$DEVCONTAINER_CONFIG" "$SKIP_DOPPLER_MOUNT" "${EXTRA_RUN_ARGS[@]}")
+EFFECTIVE_DEVCON_DIR=$(prepare_devcontainer_config "$DEVCONTAINER_CONFIG" "$DOPPLER_DISABLED" "${EXTRA_RUN_ARGS[@]}")
 CONFIG_TO_USE="${EFFECTIVE_DEVCON_DIR:-$DEVCONTAINER_CONFIG}/devcontainer.json"
 
 # Create devcontainer with dynamic port mappings
 info "Creating devcontainer..."
-devcontainer up \
-  --workspace-folder . \
-  --config "$CONFIG_TO_USE" \
-  --id-label "$WORKSPACE_LABEL" \
+DEVCONTAINER_UP_ARGS=(
+  --workspace-folder .
+  --config "$CONFIG_TO_USE"
+  --id-label "$WORKSPACE_LABEL"
   --remove-existing-container
+)
+if [ "$NO_CACHE" = true ]; then
+  info "Building without cache..."
+  DEVCONTAINER_UP_ARGS+=(--build-no-cache)
+fi
+devcontainer up "${DEVCONTAINER_UP_ARGS[@]}"
 
 # Display all port mappings
 echo ""

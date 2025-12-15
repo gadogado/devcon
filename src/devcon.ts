@@ -1,12 +1,136 @@
 #!/usr/bin/env node
 
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { spawnSync } from 'child_process';
+import { parse as parseYaml } from 'yaml';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Config interface
+interface CustomMount {
+  source: string;
+  target: string;
+}
+
+interface DevconConfig {
+  container?: {
+    prefix?: string;
+    use_repo_name?: boolean;
+  };
+  mounts?: {
+    claude?: boolean;
+    codex?: boolean;
+    cursor?: boolean;
+    azure?: boolean;
+    aws?: boolean;
+    gcloud?: boolean;
+    ssh?: boolean;
+    custom?: CustomMount[];
+  };
+  ports?: Record<string, number | string>;
+  stack?: {
+    node_version?: string;
+    python_version?: string;
+    ruby_version?: string;
+    postgres_version?: string;
+    global_packages?: string[];
+    system_packages?: string[];
+  };
+  doppler?: {
+    enabled?: boolean;
+    project?: string;
+    config?: string;
+    token_env?: string;  // Host env var containing token (default: DOPPLER_TOKEN)
+  };
+  network?: {
+    security?: {
+      enabled?: boolean;
+      allowed_hosts?: string[];
+      allowed_ips?: string[];
+      allowed_ports?: number[];
+      default_policy?: string;
+      log_blocked?: boolean;
+    };
+  };
+  workflow?: {
+    worktree_base?: string;
+    auto_cleanup?: boolean;
+    shell?: string;
+  };
+}
+
+// Find and load devcon.yaml config
+function loadConfig(): DevconConfig | null {
+  const configPaths = [
+    join(process.cwd(), '.devcontainer', 'devcon.yaml'),
+    join(process.cwd(), '.devcontainer', 'devcon.yml'),
+  ];
+
+  for (const configPath of configPaths) {
+    if (existsSync(configPath)) {
+      try {
+        const content = readFileSync(configPath, 'utf-8');
+        return parseYaml(content) as DevconConfig;
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+// Convert config to environment variables for bash scripts
+function configToEnv(config: DevconConfig | null): Record<string, string> {
+  const env: Record<string, string> = {};
+
+  if (!config) return env;
+
+  // Doppler settings
+  if (config.doppler) {
+    env.DEVCON_DOPPLER_ENABLED = String(config.doppler.enabled ?? false);
+    env.DEVCON_DOPPLER_PROJECT = config.doppler.project ?? '';
+    env.DEVCON_DOPPLER_CONFIG = config.doppler.config ?? 'dev';
+    env.DEVCON_DOPPLER_TOKEN_ENV = config.doppler.token_env ?? 'DOPPLER_TOKEN';
+  }
+
+  // Container settings
+  if (config.container) {
+    env.DEVCON_CONTAINER_PREFIX = config.container.prefix ?? 'devcontainer';
+    env.DEVCON_CONTAINER_USE_REPO_NAME = String(config.container.use_repo_name ?? true);
+  }
+
+  // Workflow settings
+  if (config.workflow) {
+    env.DEVCON_WORKFLOW_AUTO_CLEANUP = String(config.workflow.auto_cleanup ?? true);
+    env.DEVCON_WORKFLOW_SHELL = config.workflow.shell ?? 'zsh';
+    env.DEVCON_WORKFLOW_WORKTREE_BASE = config.workflow.worktree_base ?? 'devcon-worktrees';
+  }
+
+  // Network security settings
+  if (config.network?.security) {
+    env.DEVCON_NETWORK_SECURITY_ENABLED = String(config.network.security.enabled ?? false);
+    env.DEVCON_NETWORK_DEFAULT_POLICY = config.network.security.default_policy ?? 'DROP';
+    env.DEVCON_NETWORK_LOG_BLOCKED = String(config.network.security.log_blocked ?? true);
+  }
+
+  // Port allocation strategy
+  if (config.ports) {
+    const strategy = config.ports.allocation_strategy;
+    if (typeof strategy === 'string') {
+      env.DEVCON_PORT_ALLOCATION_STRATEGY = strategy;
+    }
+  }
+
+  // Mounts config (passed as JSON for Node.js in up.sh to parse)
+  if (config.mounts) {
+    env.DEVCON_MOUNTS = JSON.stringify(config.mounts);
+  }
+
+  return env;
+}
 
 const BLUE = '\x1b[34m';
 const GREEN = '\x1b[32m';
@@ -154,8 +278,12 @@ function executeSubcommand(subcommand: Subcommand, globalFlags: GlobalFlags, sub
   // Add subcommand args
   scriptArgs.push(...subcommandArgs);
 
-  // Set environment variables for verbose mode
-  const env = { ...process.env };
+  // Load config and convert to env vars
+  const config = loadConfig();
+  const configEnv = configToEnv(config);
+
+  // Set environment variables
+  const env = { ...process.env, ...configEnv };
   if (globalFlags.verbose) {
     env.DEVCON_VERBOSE = '1';
   }
